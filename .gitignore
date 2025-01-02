@@ -1,6 +1,9 @@
 # Ignorar el entorno virtual
 reconocimientoEnv/
 
+# Ignorar fotos usuarios
+users/
+
 # Archivos de Python
 *.pyc
 *.pyo
