@@ -1,6 +1,7 @@
 import streamlit as st
 import cv2
 from services.usuario_service import buscar_usuario_por_nombre, insertar_usuario
+import os
 
 # Función para cambiar de página
 def set_page(page_name):
@@ -63,6 +64,39 @@ def abrir_camara():
     cap.release()
     cv2.destroyAllWindows()
 
+
+# Función para capturar imagen
+def capturar_imagen(nombre_usuario):
+    """
+    Abre la cámara, captura una imagen y la guarda en /users/nombreusuario.
+    """
+    carpeta_usuario = f"users/{nombre_usuario}"
+    os.makedirs(carpeta_usuario, exist_ok=True)  # Crear la carpeta si no existe
+    ruta_imagen = os.path.join(carpeta_usuario, "foto.jpg")  # Nombre de la foto
+    
+    st.info("Abriendo cámara para capturar la imagen...")
+    
+    cap = cv2.VideoCapture(0)
+    st.write("Presiona 'c' para capturar la imagen o 'q' para salir.")
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            st.error("No se pudo abrir la cámara.")
+            break
+        cv2.imshow("Captura de Imagen", frame)
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('c'):  # Capturar imagen
+            cv2.imwrite(ruta_imagen, frame)
+            st.success(f"Imagen capturada y guardada en {ruta_imagen}")
+            break
+        elif key == ord('q'):  # Salir sin capturar
+            st.info("Cerrando cámara sin capturar imagen.")
+            break
+    cap.release()
+    cv2.destroyAllWindows()
+    return ruta_imagen if os.path.exists(ruta_imagen) else None
+
+
 # Página de Registro
 def register_page():
     st.title("Registro de Usuario")
@@ -71,15 +105,30 @@ def register_page():
     contraseña = st.text_input("Contraseña", type="password")
     confirmar_contraseña = st.text_input("Confirmar Contraseña", type="password")
     
+    # Inicializar la variable de ruta de imagen en el estado
+    if "ruta_imagen" not in st.session_state:
+        st.session_state["ruta_imagen"] = None
+    
+    if st.button("Capturar Imagen"):
+        if usuario:
+            st.session_state["ruta_imagen"] = capturar_imagen(usuario)
+        else:
+            st.error("Por favor, ingresa un nombre de usuario antes de capturar la imagen.")
+    
     if st.button("Registrarse"):
         if contraseña != confirmar_contraseña:
             st.error("Las contraseñas no coinciden.")
         elif not usuario or not contraseña:
             st.error("Todos los campos son obligatorios.")
+        elif not st.session_state["ruta_imagen"]:
+            st.error("Debes capturar una imagen antes de registrarte.")
         else:
             try:
-                insertar_usuario(usuario, contraseña, f"users/{usuario}")
+                # Guardar en la base de datos
+                ruta_carpeta = f"users/{usuario}"
+                insertar_usuario(usuario, contraseña, ruta_carpeta)
                 st.success("Usuario registrado con éxito.")
+                st.session_state["ruta_imagen"] = None  # Reiniciar la imagen
                 set_page("login")  # Volver al login
             except Exception as e:
                 st.error(f"Error al registrar usuario: {e}")
