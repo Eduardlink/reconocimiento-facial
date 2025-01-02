@@ -35,16 +35,24 @@ def consultar_usuarios():
 
 def buscar_usuario_por_nombre(nombre_usuario):
     """
-    Busca un usuario por su nombre.
+    Busca un usuario por su nombre y devuelve los detalles.
     """
     connection = create_connection()
+    usuario = None
     if connection:
-        query = "SELECT * FROM usuarios WHERE usuario = %s;"
-        params = (nombre_usuario,)
-        cursor = execute_query(connection, query, params)
-        usuario = cursor.fetchone() if cursor else None
-        close_connection(connection)
-        return usuario
+        try:
+            query = "SELECT * FROM usuarios WHERE usuario = %s;"
+            params = (nombre_usuario,)
+            cursor = connection.cursor()
+            cursor.execute(query, params)
+            usuario = cursor.fetchone()
+            cursor.close()
+        except Exception as e:
+            print(f"Error al buscar el usuario: {e}")
+        finally:
+            close_connection(connection)
+    return usuario
+
 
 def actualizar_carpeta_usuario(nombre_usuario, nueva_url_carpeta):
     """
