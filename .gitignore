@@ -1,0 +1,40 @@
+# Ignorar el entorno virtual
+reconocimientoEnv/
+
+# Archivos de Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.env
+
+# Archivos de configuración del entorno
+.env
+*.env
+
+# Archivos y carpetas de logs
+*.log
+logs/
+*.sqlite3
+
+# Configuración del IDE
+.vscode/
+.idea/
+*.sublime-workspace
+
+# Configuración de sistema operativo
+.DS_Store
+Thumbs.db
+
+# Carpetas temporales y de caché
+tmp/
+.cache/
+*.bak
+
+# Archivos relacionados con Jupyter (si los usas)
+.ipynb_checkpoints/
+
+# Configuración de paquetes
+*.egg-info/
+dist/
+build/
