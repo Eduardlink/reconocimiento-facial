@@ -1,31 +1,41 @@
+import os
 import cv2
 import tensorflow as tf
 import numpy as np
-import os
 import json
-import streamlit as st
 from collections import Counter
 
-# Cargar modelo y configuración
-MODEL_PATH = "scripts\modelo_reconocimiento_mejorado.h5"
-CLASS_INDICES_PATH = "scripts\class_indices.json"
+MODEL_PATH = "scripts/modelo_reconocimiento_mejorado.h5"
+CLASS_INDICES_PATH = "scripts/class_indices.json"
 HAAR_CASCADE_PATH = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 
-if not os.path.exists(MODEL_PATH) or not os.path.exists(CLASS_INDICES_PATH):
-    raise FileNotFoundError("El modelo o los índices de clase no existen. Por favor, entrena el modelo primero.")
-
-model = tf.keras.models.load_model(MODEL_PATH)
-
-with open(CLASS_INDICES_PATH, "r") as f:
-    class_indices = json.load(f)
-class_labels = {v: k for k, v in class_indices.items()}  # Invertir el diccionario
-
 face_cascade = cv2.CascadeClassifier(HAAR_CASCADE_PATH)
+
+def cargar_modelo():
+    """
+    Carga el modelo y los índices de clase si existen.
+    """
+    if not os.path.exists(MODEL_PATH) or not os.path.exists(CLASS_INDICES_PATH):
+        raise FileNotFoundError("El modelo o los índices de clase no existen. Por favor, registre un usuario y entrene el modelo.")
+    
+    model = tf.keras.models.load_model(MODEL_PATH)
+    with open(CLASS_INDICES_PATH, "r") as f:
+        class_indices = json.load(f)
+    class_labels = {v: k for k, v in class_indices.items()}  # Invertir el diccionario
+
+    return model, class_labels
 
 def reconocer_usuario_streamlit():
     """
     Detección en tiempo real con estabilización de predicciones.
     """
+    import streamlit as st
+    try:
+        model, class_labels = cargar_modelo()
+    except FileNotFoundError as e:
+        st.error(str(e))
+        return
+
     stframe = st.empty()  # Contenedor para mostrar el video
     cap = cv2.VideoCapture(0)
 

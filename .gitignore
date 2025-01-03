@@ -46,3 +46,8 @@ tmp/
 *.egg-info/
 dist/
 build/
+
+mejorado.h5
+normal.h5
+
+.codegpt
