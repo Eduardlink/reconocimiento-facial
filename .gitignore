@@ -3,6 +3,11 @@ reconocimientoEnv/
 
 # Ignorar fotos usuarios
 users/
+scripts/class_indices.json
+scripts/modelo_reconocimiento_facial.h5
+scripts/modelo_reconocimiento_mejorado.h5
+usuarios.db
+head
 
 # Archivos de Python
 *.pyc
