@@ -5,7 +5,7 @@ reconocimientoEnv/
 users/
 
 # Ignorar modelo
-model/
+#model/
 
 # Archivos de Python
 *.pyc
