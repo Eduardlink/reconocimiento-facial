@@ -2,25 +2,95 @@ import cv2
 import os
 import numpy as np
 
-def suavizar_imagen(image):
+def suavizar_imagen(image, kernel_size=5):
     """
-    Aplica un filtro de suavizado (filtro de media) a una imagen.
+    Aplica un filtro de suavizado (filtro de media) a una imagen de forma manual.
+    
+    Args:
+        image (numpy.ndarray): Imagen original (en formato NumPy).
+        kernel_size (int): Tamaño del kernel (debe ser impar).
+    
+    Returns:
+        numpy.ndarray: Imagen suavizada.
     """
-    return cv2.blur(image, (5, 5))
+    if kernel_size % 2 == 0:
+        raise ValueError("El tamaño del kernel debe ser impar.")
+
+    # Asegurarse de que la imagen sea en escala de grises o RGB
+    if len(image.shape) == 3:
+        is_rgb = True
+    else:
+        is_rgb = False
+        image = image[..., np.newaxis]  # Añadir un eje para manejar de manera uniforme
+
+    # Dimensiones de la imagen
+    h, w, c = image.shape
+    offset = kernel_size // 2
+
+    # Imagen con borde para manejar los bordes
+    padded_image = np.pad(image, ((offset, offset), (offset, offset), (0, 0)), mode='reflect')
+
+    # Crear una matriz para la imagen suavizada
+    suavizada = np.zeros((h, w, c), dtype=np.uint8)
+
+    # Aplicar filtro de media
+    for i in range(h):
+        for j in range(w):
+            for channel in range(c):
+                ventana = padded_image[i:i+kernel_size, j:j+kernel_size, channel]
+                suavizada[i, j, channel] = np.mean(ventana)
+
+    # Si la imagen original era en escala de grises, devolverla sin el tercer eje
+    return suavizada if is_rgb else suavizada[..., 0]
 
 def acentuar_imagen(image):
     """
-    Aplica un filtro de acentuado de pase alto a una imagen.
+    Aplica un filtro de acentuado de pase alto a una imagen de forma manual.
+    
+    Args:
+        image (numpy.ndarray): Imagen original.
+    
+    Returns:
+        numpy.ndarray: Imagen con el filtro de acentuado aplicado.
     """
+    # Definir el kernel de pase alto
     kernel = np.array([[0, -1, 0],
                        [-1, 5, -1],
                        [0, -1, 0]])
-    return cv2.filter2D(image, -1, kernel)
+    
+    # Asegurarse de que la imagen sea en escala de grises o RGB
+    if len(image.shape) == 3:
+        is_rgb = True
+    else:
+        is_rgb = False
+        image = image[..., np.newaxis]  # Añadir un eje para manejar de manera uniforme
+
+    # Dimensiones de la imagen
+    h, w, c = image.shape
+    offset = kernel.shape[0] // 2  # Tamaño del desplazamiento (suponiendo kernel cuadrado)
+
+    # Imagen con borde para manejar los bordes
+    padded_image = np.pad(image, ((offset, offset), (offset, offset), (0, 0)), mode='reflect')
+
+    # Crear una matriz para la imagen acentuada
+    acentuada = np.zeros((h, w, c), dtype=np.uint8)
+
+    # Aplicar convolución
+    for i in range(h):
+        for j in range(w):
+            for channel in range(c):
+                ventana = padded_image[i:i+kernel.shape[0], j:j+kernel.shape[1], channel]
+                valor = np.sum(ventana * kernel)
+                # Limitar el rango de valores entre 0 y 255
+                acentuada[i, j, channel] = np.clip(valor, 0, 255)
+
+    # Si la imagen original era en escala de grises, devolverla sin el tercer eje
+    return acentuada if is_rgb else acentuada[..., 0]
 
 def aplicar_sobel(image):
     """
-    Aplica el filtro Sobel para acentuar bordes.
-    Combina los gradientes en las direcciones X e Y.
+    Aplica el filtro Sobel manualmente para detectar bordes en las direcciones X e Y.
+    Combina ambos gradientes para obtener la magnitud de los bordes.
     
     Args:
         image (numpy.ndarray): Imagen original.
@@ -28,21 +98,50 @@ def aplicar_sobel(image):
     Returns:
         numpy.ndarray: Imagen con bordes resaltados.
     """
-    # Convertir a escala de grises para aplicar Sobel
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # Convertir a escala de grises si es necesario
+    if len(image.shape) == 3:
+        image = np.mean(image, axis=2).astype(np.uint8)  # Promedio de canales RGB
     
-    # Aplicar Sobel en las direcciones X e Y
-    sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)  # Gradiente en X
-    sobel_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)  # Gradiente en Y
+    # Definir los kernels de Sobel
+    sobel_x = np.array([[-1, 0, 1],
+                        [-2, 0, 2],
+                        [-1, 0, 1]])
     
-    # Magnitud combinada
-    sobel_combined = cv2.magnitude(sobel_x, sobel_y)
+    sobel_y = np.array([[-1, -2, -1],
+                        [ 0,  0,  0],
+                        [ 1,  2,  1]])
     
-    # Normalizar la magnitud para convertirla a 8 bits
-    sobel_combined = np.uint8(cv2.normalize(sobel_combined, None, 0, 255, cv2.NORM_MINMAX))
-    
+    # Dimensiones de la imagen
+    h, w = image.shape
+    offset = sobel_x.shape[0] // 2
+
+    # Imagen con borde para manejar los bordes
+    padded_image = np.pad(image, ((offset, offset), (offset, offset)), mode='reflect')
+
+    # Crear matrices para los gradientes en X, Y y la magnitud combinada
+    grad_x = np.zeros((h, w), dtype=np.float32)
+    grad_y = np.zeros((h, w), dtype=np.float32)
+    sobel_combined = np.zeros((h, w), dtype=np.float32)
+
+    # Aplicar convolución
+    for i in range(h):
+        for j in range(w):
+            # Extraer ventana de la imagen
+            ventana = padded_image[i:i+sobel_x.shape[0], j:j+sobel_x.shape[1]]
+            # Gradiente en X
+            grad_x[i, j] = np.sum(ventana * sobel_x)
+            # Gradiente en Y
+            grad_y[i, j] = np.sum(ventana * sobel_y)
+
+    # Calcular la magnitud combinada
+    sobel_combined = np.sqrt(grad_x**2 + grad_y**2)
+
+    # Normalizar la magnitud combinada a rango [0, 255]
+    sobel_combined = (sobel_combined / sobel_combined.max()) * 255.0
+    sobel_combined = sobel_combined.astype(np.uint8)
+
     # Convertir a BGR para mantener compatibilidad
-    return cv2.cvtColor(sobel_combined, cv2.COLOR_GRAY2BGR)
+    return np.stack([sobel_combined]*3, axis=-1)
 
 def procesar_imagenes(input_dir, output_dir):
     """

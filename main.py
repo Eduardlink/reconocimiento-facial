@@ -4,11 +4,15 @@ from services.usuario_service import buscar_usuario_por_nombre, insertar_usuario
 import os
 from app.aumento_datos import data_augmentation
 from app.preprocesamiento import procesar_imagenes
-from scripts.entrenamiento_modelo import entrenar_modelo
+#from scripts.entrenamiento_modelo import entrenar_modelo
+from app.entrenamiento_modelo import entrenar_modelo
 from tensorflow.keras.models import load_model
 import numpy as np
 from app.preprocesamiento import preprocesar_imagen
 import json
+import h5py
+from app.activations import relu, softmax
+
 
 # Función para cambiar de página
 def set_page(page_name):
@@ -43,28 +47,29 @@ def login_page():
 
 def reconocer_usuario():
     """
-    Captura una imagen con la cámara, detecta el rostro, lo procesa y lo reconoce.
+    Captura una imagen con la cámara, detecta el rostro, lo procesa y lo reconoce manualmente.
     """
     st.info("Abriendo cámara para reconocimiento facial...")
-    
-    # Cargar modelo entrenado
+
+    # Verificar si el modelo y el mapeo de etiquetas están disponibles
     model_path = "model/cnn_model.h5"
-    class_indices_path = "model/class_indices.json"
-    
-    if not os.path.exists(model_path) or not os.path.exists(class_indices_path):
-        st.error("El modelo o el mapeo de etiquetas no están disponibles. Por favor, entrena el modelo primero.")
+    if not os.path.exists(model_path):
+        st.error("El modelo no está disponible. Por favor, entrena el modelo primero.")
         return
-    
-    model = load_model(model_path)
-    
-    # Cargar mapeo de etiquetas
-    with open(class_indices_path, "r") as f:
-        class_indices = json.load(f)
+
+    # Cargar el modelo manualmente
+    with h5py.File(model_path, "r") as f:
+        W1 = f["W1"][:]
+        b1 = f["b1"][:]
+        W2 = f["W2"][:]
+        b2 = f["b2"][:]
+        class_indices = json.loads(f.attrs["class_indices"])
+
     label_map = {v: k for k, v in class_indices.items()}  # Invertir el mapeo
-    
+
     # Cargar el modelo de detección de rostros
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-    
+
     # Inicializar la cámara
     cap = cv2.VideoCapture(0)
     st.write("Presiona 'c' para capturar el rostro o 'q' para salir.")
@@ -73,15 +78,15 @@ def reconocer_usuario():
         if not ret:
             st.error("No se pudo abrir la cámara.")
             break
-        
+
         # Convertir a escala de grises para la detección
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(100, 100))
-        
+
         # Dibujar rectángulos alrededor de los rostros detectados
         for (x, y, w, h) in faces:
             cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
-        
+
         cv2.imshow("Reconocimiento Facial", frame)
         key = cv2.waitKey(1) & 0xFF
         if key == ord('c'):  # Capturar rostro
@@ -89,15 +94,19 @@ def reconocer_usuario():
                 # Recortar el rostro (solo el primero detectado)
                 x, y, w, h = faces[0]
                 rostro = frame[y:y+h, x:x+w]
-                
+
                 # Preprocesar el rostro
                 processed_frame = preprocesar_imagen(rostro)
-                processed_frame = np.expand_dims(processed_frame, axis=0)  # Expandir dimensiones
-                
-                # Hacer la predicción
-                prediction = model.predict(processed_frame)
-                predicted_label = label_map[np.argmax(prediction)]
-                
+                processed_frame = processed_frame.flatten().reshape(1, -1)  # Aplanar
+
+                # Forward propagation manual
+                Z1 = np.dot(processed_frame, W1) + b1
+                A1 = relu(Z1)
+                Z2 = np.dot(A1, W2) + b2
+                A2 = softmax(Z2)
+
+                # Predicción de la clase
+                predicted_label = label_map[np.argmax(A2)]
                 st.success(f"Usuario reconocido: {predicted_label}")
                 st.session_state["usuario"] = predicted_label
                 set_page("welcome")  # Navegar a la página de bienvenida
@@ -109,6 +118,7 @@ def reconocer_usuario():
             break
     cap.release()
     cv2.destroyAllWindows()
+
 
 # Verificar credenciales
 def verificar_credenciales(usuario, contraseña):
