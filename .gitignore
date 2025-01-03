@@ -4,6 +4,9 @@ reconocimientoEnv/
 # Ignorar fotos usuarios
 users/
 
+# Ignorar modelo
+model/
+
 # Archivos de Python
 *.pyc
 *.pyo
