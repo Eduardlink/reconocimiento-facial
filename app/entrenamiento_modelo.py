@@ -85,7 +85,7 @@ def entrenar_modelo(base_dir, output_model_path):
     X_train_flat = X_train.reshape(X_train.shape[0], -1)
     X_val_flat = X_val.reshape(X_val.shape[0], -1)
 
-    epochs = 10
+    epochs = 20
     learning_rate = 0.01
 
     for epoch in range(epochs):
