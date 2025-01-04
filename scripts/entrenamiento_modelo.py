@@ -50,7 +50,7 @@ def entrenar_modelo(base_dir, output_model_path):
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     
     # Entrenar modelo
-    model.fit(train_gen, validation_data=val_gen, epochs=10)
+    model.fit(train_gen, validation_data=val_gen, epochs=20)
     
     # Guardar modelo
     model.save(output_model_path)
