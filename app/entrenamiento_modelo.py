@@ -83,6 +83,15 @@ def guardar_modelo_h5(output_model_path, filtros, bias_conv, W_fc, b_fc, clases)
         f.attrs["class_indices"] = json.dumps(class_indices)
     print(f"Modelo guardado en {output_model_path}")
 
+def aplicar_dropout(A, dropout_rate):
+    """
+    Aplica Dropout a las activaciones A.
+    """
+    mask = np.random.rand(*A.shape) > dropout_rate  # Genera una máscara binaria
+    A_dropped = A * mask                            # Aplica la máscara
+    A_dropped /= (1 - dropout_rate)                 # Escala para mantener la expectativa
+    return A_dropped
+
 def entrenar_modelo_convolucional(base_dir, output_model_path):
     X, y, clases = cargar_datos(base_dir)
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -106,20 +115,32 @@ def entrenar_modelo_convolucional(base_dir, output_model_path):
 
     epochs = 50
     learning_rate = 0.01
+    dropout_rate = 0.4  # Tasa de dropout (40% de neuronas desactivadas)
 
     for epoch in range(epochs):
+        # Forward propagation
         Z_conv = convolucion(X_train, filtros, bias_conv)
         A_conv = relu(Z_conv)
         A_pool = max_pooling(A_conv)
+
+        # Aplanar y aplicar Dropout
         A_flat = A_pool.reshape(A_pool.shape[0], -1)
+        A_flat = aplicar_dropout(A_flat, dropout_rate)
+
         Z_fc = np.dot(A_flat, W_fc) + b_fc
         A_fc = relu(Z_fc)
+
+        # Aplicar Dropout a la capa densa
+        A_fc = aplicar_dropout(A_fc, dropout_rate)
+
         Z_out = np.dot(A_fc, W_out) + b_out
         A_out = softmax(Z_out)
 
+        # Pérdida
         loss = cross_entropy_loss(A_out, y_train_encoded)
         print(f"Época {epoch+1}/{epochs}, Pérdida: {loss:.4f}")
 
+        # Backward propagation
         dZ_out = cross_entropy_derivative(A_out, y_train_encoded)
         dW_out = np.dot(A_fc.T, dZ_out) / X_train.shape[0]
         db_out = np.sum(dZ_out, axis=0, keepdims=True) / X_train.shape[0]
@@ -130,7 +151,6 @@ def entrenar_modelo_convolucional(base_dir, output_model_path):
         db_fc = np.sum(dZ_fc, axis=0, keepdims=True) / X_train.shape[0]
 
         dA_pool = np.dot(dZ_fc, W_fc.T).reshape(A_pool.shape)
-        dA_conv = np.zeros_like(A_conv)  # Simplificación para pooling
 
         filtros -= learning_rate * filtros
         W_fc -= learning_rate * dW_fc
@@ -138,6 +158,7 @@ def entrenar_modelo_convolucional(base_dir, output_model_path):
         W_out -= learning_rate * dW_out
         b_out -= learning_rate * db_out
 
+        # Validación (sin Dropout)
         Z_conv_val = convolucion(X_val, filtros, bias_conv)
         A_conv_val = relu(Z_conv_val)
         A_pool_val = max_pooling(A_conv_val)
