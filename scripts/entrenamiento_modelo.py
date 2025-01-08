@@ -5,11 +5,14 @@ import json
 
 def entrenar_modelo(base_dir, output_model_path):
     """
-    Entrena un modelo CNN con las imágenes procesadas.
+    Entrena un modelo CNN con las imágenes procesadas y devuelve la precisión en el conjunto de validación.
     
     Args:
         base_dir (str): Directorio base con carpetas por cada usuario.
         output_model_path (str): Ruta para guardar el modelo entrenado.
+    
+    Returns:
+        float: Precisión del modelo en el conjunto de validación.
     """
     # Configuración de generadores de datos
     datagen = ImageDataGenerator(rescale=1.0/255.0, validation_split=0.2)
@@ -37,21 +40,34 @@ def entrenar_modelo(base_dir, output_model_path):
     print(f"Mapeo de etiquetas guardado en {class_indices_path}")
     
     # Modelo CNN
+    # Modelo CNN con Dropout
     model = tf.keras.Sequential([
         tf.keras.layers.Conv2D(32, (3, 3), activation="relu", input_shape=(128, 128, 3)),
         tf.keras.layers.MaxPooling2D((2, 2)),
+        tf.keras.layers.Dropout(0.4),  # Dropout después de la primera capa de pooling
+
         tf.keras.layers.Conv2D(64, (3, 3), activation="relu"),
         tf.keras.layers.MaxPooling2D((2, 2)),
+        tf.keras.layers.Dropout(0.5),  # Dropout después de la segunda capa de pooling
+
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(128, activation="relu"),
+
         tf.keras.layers.Dense(len(train_gen.class_indices), activation="softmax")
     ])
-    
+
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     
     # Entrenar modelo
-    model.fit(train_gen, validation_data=val_gen, epochs=20)
+    model.fit(train_gen, validation_data=val_gen, epochs=50)
+    
+    # Evaluar modelo en el conjunto de validación
+    loss, accuracy = model.evaluate(val_gen, verbose=1)
+    print(f"Precisión en el conjunto de validación: {accuracy * 100:.2f}%")
     
     # Guardar modelo
     model.save(output_model_path)
     print(f"Modelo guardado en {output_model_path}")
+    
+    # Devolver la precisión en porcentaje
+    return accuracy * 100

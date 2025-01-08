@@ -142,21 +142,29 @@ def abrir_camara():
 
 
 # Función para capturar imagen
-
-def capturar_imagen(usuario):
+def capturar_imagenes(usuario, num_fotos=3):
     """
-    Abre la cámara, captura una imagen, detecta el rostro y lo guarda.
+    Abre la cámara, captura varias imágenes, detecta los rostros y los guarda.
+    
+    Args:
+        usuario (str): Nombre del usuario.
+        num_fotos (int): Número de fotos a capturar.
+    
+    Returns:
+        list: Lista de rutas a las imágenes capturadas.
     """
     carpeta_usuario = f"users/{usuario}"
     os.makedirs(carpeta_usuario, exist_ok=True)  # Crear la carpeta si no existe
-    ruta_imagen = os.path.join(carpeta_usuario, "rostro.jpg")  # Nombre de la foto
-    
+    rutas_imagenes = []  # Lista para guardar las rutas de las imágenes
+
     # Cargar el modelo de detección de rostros
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
     
     cap = cv2.VideoCapture(0)
-    st.write("Presiona 'c' para capturar el rostro o 'q' para salir.")
-    while cap.isOpened():
+    st.write(f"Presiona 'c' para capturar el rostro ({num_fotos} veces) o 'q' para salir.")
+
+    fotos_capturadas = 0
+    while cap.isOpened() and fotos_capturadas < num_fotos:
         ret, frame = cap.read()
         if not ret:
             st.error("No se pudo abrir la cámara.")
@@ -177,17 +185,22 @@ def capturar_imagen(usuario):
                 # Extraer el rostro (solo el primero detectado)
                 x, y, w, h = faces[0]
                 rostro = frame[y:y+h, x:x+w]
+                ruta_imagen = os.path.join(carpeta_usuario, f"rostro_{fotos_capturadas + 1}.jpg")
                 cv2.imwrite(ruta_imagen, rostro)  # Guardar el rostro recortado
+                rutas_imagenes.append(ruta_imagen)
                 st.success(f"Rostro capturado y guardado en {ruta_imagen}")
+                fotos_capturadas += 1
             else:
                 st.error("No se detectó ningún rostro. Intenta de nuevo.")
-            break
         elif key == ord('q'):  # Salir sin capturar
-            st.info("Cerrando cámara sin capturar rostro.")
+            st.info("Cerrando cámara sin capturar todas las imágenes.")
             break
+
     cap.release()
     cv2.destroyAllWindows()
-    return ruta_imagen if os.path.exists(ruta_imagen) else None
+
+    return rutas_imagenes if len(rutas_imagenes) == num_fotos else None
+
 
 # Página de Registro
 def register_page():
@@ -197,41 +210,42 @@ def register_page():
     contraseña = st.text_input("Contraseña", type="password")
     confirmar_contraseña = st.text_input("Confirmar Contraseña", type="password")
     
-    if "ruta_imagen" not in st.session_state:
-        st.session_state["ruta_imagen"] = None
+    if "rutas_imagenes" not in st.session_state:
+        st.session_state["rutas_imagenes"] = None
     
-    if st.button("Capturar Imagen"):
+    if st.button("Capturar Imágenes"):
         if usuario:
-            st.session_state["ruta_imagen"] = capturar_imagen(usuario)
+            st.session_state["rutas_imagenes"] = capturar_imagenes(usuario, num_fotos=3)
         else:
-            st.error("Por favor, ingresa un nombre de usuario antes de capturar la imagen.")
+            st.error("Por favor, ingresa un nombre de usuario antes de capturar las imágenes.")
     
     if st.button("Registrarse"):
         if contraseña != confirmar_contraseña:
             st.error("Las contraseñas no coinciden.")
         elif not usuario or not contraseña:
             st.error("Todos los campos son obligatorios.")
-        elif not st.session_state["ruta_imagen"]:
-            st.error("Debes capturar una imagen antes de registrarte.")
+        elif not st.session_state["rutas_imagenes"]:
+            st.error("Debes capturar las imágenes antes de registrarte.")
         else:
             try:
                 # Ruta de la carpeta del usuario
                 user_dir = f"users/{usuario}"
                 
-                # Aumentar datos con Data Augmentation
-                data_augmentation(st.session_state["ruta_imagen"], user_dir)
+                # Aplicar Data Augmentation para cada imagen capturada
+                for ruta_imagen in st.session_state["rutas_imagenes"]:
+                    data_augmentation(ruta_imagen, user_dir)
                 
                 # Procesar imágenes aumentadas
                 procesar_imagenes(user_dir, user_dir)
                 
-                # Entrenar modelo CNN con todas las imágenes
-                entrenar_modelo("users", "model/cnn_model.h5")
+                # Entrenar modelo CNN con todas las imágenes y obtener precisión
+                precision = entrenar_modelo("users", "model/cnn_model.h5")
                 
                 # Guardar información del usuario en la base de datos
                 insertar_usuario(usuario, contraseña, user_dir)
                 
-                st.success("Usuario registrado, datos aumentados y modelo actualizado con éxito.")
-                st.session_state["ruta_imagen"] = None  # Reiniciar la imagen
+                st.success(f"Usuario registrado con éxito. Modelo entrenado con una precisión de {precision:.2f}% en validación.")
+                st.session_state["rutas_imagenes"] = None  # Reiniciar las imágenes
                 set_page("login")  # Volver al login
             except Exception as e:
                 st.error(f"Error: {e}")
@@ -239,6 +253,10 @@ def register_page():
     # Botón para regresar al Login
     if st.button("Volver al Login"):
         set_page("login")
+
+
+
+        
 # Página de Bienvenida
 def welcome_page():
     usuario = st.session_state.get("usuario", "Usuario")
