@@ -32,6 +32,13 @@ def inicializar_pesos(input_dim, output_dim):
     """
     return np.random.randn(input_dim, output_dim) * 0.01
 
+def aplicar_dropout(A, dropout_rate):
+    """
+    Simula el Dropout en una capa.
+    """
+    mask = np.random.rand(*A.shape) > dropout_rate
+    return A * mask
+
 def cross_entropy_loss(y_hat, y):
     """
     Calcula la pérdida de entropía cruzada.
@@ -44,6 +51,14 @@ def cross_entropy_derivative(y_hat, y):
     Calcula la derivada de la pérdida de entropía cruzada.
     """
     return y_hat - y
+
+def calcular_precision(y_hat, y):
+    """
+    Calcula la precisión del modelo.
+    """
+    y_pred = np.argmax(y_hat, axis=1)
+    y_true = np.argmax(y, axis=1)
+    return np.mean(y_pred == y_true)
 
 def guardar_modelo_h5(output_model_path, W1, b1, W2, b2, clases):
     """
@@ -85,13 +100,15 @@ def entrenar_modelo(base_dir, output_model_path):
     X_train_flat = X_train.reshape(X_train.shape[0], -1)
     X_val_flat = X_val.reshape(X_val.shape[0], -1)
 
-    epochs = 20
+    epochs = 50
     learning_rate = 0.01
+    dropout_rate = 0.4
 
     for epoch in range(epochs):
         # Forward propagation
         Z1 = np.dot(X_train_flat, W1) + b1
         A1 = relu(Z1)
+        A1 = aplicar_dropout(A1, dropout_rate)  # Aplicar Dropout
         Z2 = np.dot(A1, W2) + b2
         A2 = softmax(Z2)
 
@@ -122,7 +139,8 @@ def entrenar_modelo(base_dir, output_model_path):
         A2_val = softmax(Z2_val)
 
         val_loss = cross_entropy_loss(A2_val, y_val_encoded)
-        print(f"Época {epoch+1}/{epochs}, Pérdida de Validación: {val_loss:.4f}")
+        val_accuracy = calcular_precision(A2_val, y_val_encoded)
+        print(f"Época {epoch+1}/{epochs}, Pérdida de Validación: {val_loss:.4f}, Precisión de Validación: {val_accuracy * 100:.2f}%")
 
     # Guardar modelo en formato .h5
     guardar_modelo_h5(output_model_path, W1, b1, W2, b2, clases)
@@ -133,3 +151,6 @@ def entrenar_modelo(base_dir, output_model_path):
     with open(class_indices_path, "w") as f:
         json.dump(class_indices, f)
     print(f"Mapeo de etiquetas guardado en {class_indices_path}")
+
+    # Devolver precisión de validación
+    return val_accuracy * 100
